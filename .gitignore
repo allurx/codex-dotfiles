@@ -1,0 +1,6 @@
+/*
+!/.gitignore
+!/README.md
+!/codex/
+/codex/*
+!/codex/AGENTS.md
