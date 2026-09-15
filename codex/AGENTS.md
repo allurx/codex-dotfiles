@@ -70,9 +70,10 @@
 ### PR、合并与同步
 
 - 创建或实质更新 PR 前，准备并展示标题、base/head、正文和 commit 范围。内容、目标和授权明确时执行，存在实质待定项时才询问；展示不代表需要重复授权。仅要求 review 时在当前任务提供结果，不自动向外部提交 review。
-- PR 创建或更新、提交 review、合并各需对应授权。GitHub PR 默认使用 `Squash and merge`；只有项目本身明确要求了指定的合并规则时，才按该规则执行。
-- 合并后需同步本地时，核对目标分支及承载它的 checkout/worktree，在该处执行 `git pull --ff-only`，不假定分支名为 `main`。切换前确认不会影响已有修改。
-- 目标 checkout 有未提交修改、分叉或无法 fast-forward 时，说明状态并请求决定，不强行 reset 或强推。`git pull --ff-only` 不创建本地 merge commit；同步得到的远端 merge commit 按实际历史解释。
+- PR 创建或更新、提交 review、合并各需对应授权。GitHub PR 合并遵循项目规则；无明确约定时，短期功能、修复和依赖更新分支默认使用 `Squash and merge`，会持续维护并反复合入其他分支的长期分支默认使用 `Create a merge commit`，保留祖先关系。执行前核对分支用途及 base/head，显式选择合并方式。
+- 合并前重新核对目标分支、head SHA、实际文件差异及项目要求的检查结果；head 更新后，重新审查受影响的差异并核对新提交的检查结果。
+- 本地分支跟进其远端上游时，核对目标分支、上游及承载该分支的 checkout/worktree，在该处执行 `git pull --ff-only`，不假定分支名为 `main`。切换前确认不会影响已有修改；有未提交修改或无法快进时，说明具体状态并请求决定，不强行 reset 或强推。`git pull --ff-only` 不创建本地 merge commit；同步得到的远端 merge commit 按实际历史解释。
+- 已授权、通过本地 Git 执行的分支间同步按项目规则和祖先关系处理：源分支已被目标分支包含则跳过，目标分支可快进则快进，分叉时普通合并并保留双方改动。
 
 ### Tag、release 与清理
 
