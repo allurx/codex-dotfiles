@@ -70,7 +70,7 @@
 ### PR、合并与同步
 
 - 创建或实质更新 PR 前，准备并展示标题、base/head、正文和 commit 范围。内容、目标和授权明确时执行，存在实质待定项时才询问；展示不代表需要重复授权。仅要求 review 时在当前任务提供结果，不自动向外部提交 review。
-- PR 创建或更新、提交 review、合并各需对应授权。合并遵循仓库规则，无约定时默认 `Squash and merge`；需要保留完整历史或 topology 时才选其他方式。
+- PR 创建或更新、提交 review、合并各需对应授权。GitHub PR 默认使用 `Squash and merge`；只有项目本身明确要求了指定的合并规则时，才按该规则执行。
 - 合并后需同步本地时，核对目标分支及承载它的 checkout/worktree，在该处执行 `git pull --ff-only`，不假定分支名为 `main`。切换前确认不会影响已有修改。
 - 目标 checkout 有未提交修改、分叉或无法 fast-forward 时，说明状态并请求决定，不强行 reset 或强推。`git pull --ff-only` 不创建本地 merge commit；同步得到的远端 merge commit 按实际历史解释。
 
