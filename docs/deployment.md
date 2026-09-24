@@ -47,3 +47,9 @@ npm run check:deployment -- https://codex.allurx.io
 首次绑定要求 Worker 已有部署；若首轮 CI 在域名就绪前访问检查失败，绑定完成后在 Actions 中重新运行失败作业。
 
 需要回滚时，在该 Worker 的 **Deployments** 选择已验证的历史版本执行 [Rollback](https://developers.cloudflare.com/workers/versions-and-deployments/rollbacks/)，核对实际页面，并在 Git 中修正对应改动，避免下次推送再次发布问题版本。
+
+## 依赖更新
+
+[Dependabot 配置](../.github/dependabot.yml) 每周检查 npm 依赖和 GitHub Actions，向默认分支 `main` 提交更新 PR。核对更新内容和 CI 结果后手动合并，合并后自动发布。检查日志可在 GitHub 的 **Insights → Dependency graph → Dependabot** 查看。
+
+文档树生成器的固定 commit 位于 `scripts/document-tree.mjs`，不由上述配置更新；需要升级时修改 `revision`，执行 `npm run verify` 并检查生成页面。
