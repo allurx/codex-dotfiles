@@ -8,17 +8,20 @@ const repository = "https://github.com/allurx/agent-skills.git";
 const revision = "366394174b1acc28a83c0d46b6af66972cd2797e";
 const root = fileURLToPath(new URL("../", import.meta.url));
 const source = join(root, "codex/AGENTS.md");
+const rendered = join(root, "work/rendered/agents.html");
 const output = join(root, "dist/index.html");
+const icons = ["favicon.ico", "favicon.svg"];
+const distributionFiles = ["index.html", ...icons];
 const cache = join(root, "work/tools", `markdown-tree-view-${revision}`);
 const renderer = join(cache, "skills/markdown-tree-view/scripts/markdown-tree-view.mjs");
 const manifest = join(root, "work/build-manifest.json");
 
 function git(args) {
   const options = { cwd: cache, encoding: "utf8", windowsHide: true };
-  let result = spawnSync("git", args, options);
+  let result = spawnSync("git", ["--no-optional-locks", ...args], options);
   if (result.status !== 0 && result.stderr?.includes("detected dubious ownership")) {
     // Trust only this tool checkout, without changing the user's global Git configuration.
-    result = spawnSync("git", ["-c", `safe.directory=${cache.replaceAll("\\", "/")}`, ...args], options);
+    result = spawnSync("git", ["--no-optional-locks", "-c", `safe.directory=${cache.replaceAll("\\", "/")}`, ...args], options);
   }
   if (result.error || result.status !== 0) {
     throw new Error(`git ${args[0]} failed: ${result.error?.message ?? result.stderr.trim()}`);
@@ -26,8 +29,9 @@ function git(args) {
   return result.stdout.trim();
 }
 
-function ensureRenderer() {
+function ensureRenderer(allowDownload) {
   if (!existsSync(cache)) {
+    if (!allowDownload) throw new Error(`Tool cache is missing: ${cache}. Run npm run build before checking.`);
     mkdirSync(dirname(cache), { recursive: true });
     mkdirSync(cache);
     git(["init", "--quiet"]);
@@ -58,6 +62,30 @@ function sha256(path) {
   return createHash("sha256").update(readFileSync(path)).digest("hex");
 }
 
+function renderDocument(check) {
+  const result = spawnSync(process.execPath, [
+    renderer, "--input", source, "--output", rendered, ...(check ? ["--check"] : []),
+  ], { cwd: root, stdio: "inherit", windowsHide: true });
+  if (result.error || result.status !== 0) {
+    throw new Error(`Document tree ${check ? "check" : "build"} failed${result.error ? `: ${result.error.message}` : ` (exit ${result.status})`}.`);
+  }
+}
+
+function siteDocument() {
+  const html = readFileSync(rendered, "utf8");
+  const policies = html.match(/<meta http-equiv="Content-Security-Policy" content="[^"]*">/gu);
+  if (policies?.length !== 1 || policies[0].split("img-src 'none'").length !== 2 || html.split("</head>").length !== 2) {
+    throw new Error("Renderer output has an unexpected head or CSP. Review favicon integration before rebuilding.");
+  }
+  const links = [
+    '<link rel="icon" href="favicon.ico" sizes="16x16 32x32 48x48">',
+    '<link rel="icon" href="favicon.svg" type="image/svg+xml" sizes="any">',
+  ].join("\n");
+  return Buffer.from(html
+    .replace(policies[0], policies[0].replace("img-src 'none'", "img-src 'self'"))
+    .replace("</head>", `${links}\n</head>`));
+}
+
 function verifyDistribution(allowMissing = false) {
   const directory = dirname(output);
   const metadata = lstatSync(directory, { throwIfNoEntry: false });
@@ -66,12 +94,13 @@ function verifyDistribution(allowMissing = false) {
     throw new Error(`Distribution must be a regular directory, not a symlink: ${directory}`);
   }
   const entries = readdirSync(directory, { withFileTypes: true });
-  const unexpected = entries.filter((entry) => entry.name !== "index.html" || !entry.isFile());
+  const unexpected = entries.filter((entry) => !distributionFiles.includes(entry.name) || !entry.isFile());
   if (unexpected.length) {
-    throw new Error(`Distribution may contain only a regular index.html file. Inspect these unexpected targets before retrying: ${unexpected.map((entry) => join(directory, entry.name)).join(", ")}`);
+    throw new Error(`Distribution may contain only these regular files: ${distributionFiles.join(", ")}. Inspect these unexpected targets before retrying: ${unexpected.map((entry) => join(directory, entry.name)).join(", ")}`);
   }
-  if (!allowMissing && entries.length !== 1) {
-    throw new Error(`Distribution is missing its required file: ${output}`);
+  const missing = distributionFiles.filter((name) => !entries.some((entry) => entry.name === name));
+  if (!allowMissing && missing.length) {
+    throw new Error(`Distribution is missing required files: ${missing.map((name) => join(directory, name)).join(", ")}`);
   }
 }
 
@@ -84,14 +113,23 @@ try {
     throw new Error("Usage: node scripts/document-tree.mjs <build|check>");
   }
   verifyDistribution(mode === "build");
-  ensureRenderer();
-  const result = spawnSync(process.execPath, [
-    renderer, "--input", source, "--output", output, ...(mode === "check" ? ["--check"] : []),
-  ], { cwd: root, stdio: "inherit", windowsHide: true });
-  if (result.error || result.status !== 0) {
-    throw new Error(`Document tree ${mode} failed${result.error ? `: ${result.error.message}` : ` (exit ${result.status})`}.`);
+  ensureRenderer(mode === "build");
+  if (mode === "build") renderDocument(false);
+  renderDocument(true);
+  const artifacts = new Map([
+    ["index.html", siteDocument()],
+    ...icons.map((name) => [name, readFileSync(join(root, "site", name))]),
+  ]);
+  if (mode === "build") {
+    mkdirSync(dirname(output), { recursive: true });
+    for (const [name, bytes] of artifacts) writeFileSync(join(dirname(output), name), bytes);
   }
   verifyDistribution();
+  for (const [name, bytes] of artifacts) {
+    const path = join(dirname(output), name);
+    if (!readFileSync(path).equals(bytes)) throw new Error(`Output is missing or differs: ${path}`);
+  }
+  console.log(`Site files ${mode === "build" ? "generated and verified" : "verified"}: ${dirname(output)}`);
   if (mode === "build") {
     writeFileSync(manifest, `${JSON.stringify({
       source: "codex/AGENTS.md",
@@ -101,6 +139,7 @@ try {
       rendererSha256: sha256(renderer),
       output: "dist/index.html",
       htmlSha256: sha256(output),
+      iconSha256: Object.fromEntries(icons.map((name) => [name, sha256(join(dirname(output), name))])),
     }, null, 2)}\n`);
     console.log(`Build manifest: ${manifest}`);
   }

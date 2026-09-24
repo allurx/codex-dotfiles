@@ -9,6 +9,7 @@
 !/package-lock.json
 !/wrangler.jsonc
 !/scripts/
+!/site/
 !/docs/
 !/codex/
 /codex/*

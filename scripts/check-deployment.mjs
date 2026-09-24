@@ -15,38 +15,42 @@ try {
   if (url.protocol !== "https:" || url.username || url.password) {
     throw new Error("Provide an HTTPS deployment URL without credentials.");
   }
-  const expected = readFileSync(new URL("../dist/index.html", import.meta.url));
+  const assets = [
+    { url, name: "index.html", type: /^text\/html(?:\s*;|$)/i },
+    { url: new URL("favicon.ico", url), name: "favicon.ico", type: /^image\/(?:x-icon|vnd\.microsoft\.icon)(?:\s*;|$)/i },
+    { url: new URL("favicon.svg", url), name: "favicon.svg", type: /^image\/svg\+xml(?:\s*;|$)/i },
+  ].map((asset) => ({ ...asset, expected: readFileSync(new URL(`../dist/${asset.name}`, import.meta.url)) }));
   const sourceSha256 = sha256(readFileSync(new URL("../codex/AGENTS.md", import.meta.url)));
   const sourceMetadata = `<meta name="source-sha256" content="${sourceSha256}">`;
-  if (!expected.toString("utf8").includes(sourceMetadata)) {
+  if (!assets[0].expected.toString("utf8").includes(sourceMetadata)) {
     throw new Error("Local dist/index.html does not match codex/AGENTS.md. Run npm run build and npm run check first.");
   }
-  const expectedSha256 = sha256(expected);
   let verified = false;
   for (let attempt = 1; attempt <= 3; attempt++) {
     try {
-      const response = await fetch(url, {
-        signal: AbortSignal.timeout(15_000),
-        redirect: "error",
-        cache: "no-store",
-      });
-      if (response.status !== 200) {
-        await response.body?.cancel();
-        throw new Error(`Expected HTTP 200, received ${response.status}.`);
+      for (const asset of assets) {
+        const response = await fetch(asset.url, {
+          signal: AbortSignal.timeout(15_000),
+          redirect: "error",
+          cache: "no-store",
+        });
+        if (response.status !== 200) {
+          await response.body?.cancel();
+          throw new Error(`${asset.url.href}: expected HTTP 200, received ${response.status}.`);
+        }
+        if (!asset.type.test(response.headers.get("content-type") ?? "")) {
+          await response.body?.cancel();
+          throw new Error(`${asset.url.href}: unexpected Content-Type ${response.headers.get("content-type") ?? "(missing)"}.`);
+        }
+        const deployed = Buffer.from(await response.arrayBuffer());
+        if (!deployed.equals(asset.expected)) {
+          throw new Error(`${asset.url.href}: bytes differ from the verified artifact; expected SHA-256 ${sha256(asset.expected)}, received ${sha256(deployed)}.`);
+        }
       }
-      if (!/^text\/html(?:\s*;|$)/i.test(response.headers.get("content-type") ?? "")) {
-        await response.body?.cancel();
-        throw new Error(`Expected text/html, received ${response.headers.get("content-type") ?? "no Content-Type"}.`);
+      for (const asset of assets) {
+        console.log(`Verified ${asset.url.href}\nSHA-256: ${sha256(asset.expected)}`);
       }
-      const deployed = Buffer.from(await response.arrayBuffer());
-      const actualSha256 = sha256(deployed);
-      if (!deployed.equals(expected)) {
-        throw new Error(`HTML differs from the verified artifact: expected SHA-256 ${expectedSha256}, received ${actualSha256}.`);
-      }
-      if (!deployed.toString("utf8").includes(sourceMetadata)) {
-        throw new Error("Deployed HTML is missing the expected source-sha256 metadata.");
-      }
-      console.log(`Verified ${url.href}\nHTML SHA-256: ${actualSha256}\nSource SHA-256: ${sourceSha256}`);
+      console.log(`Source SHA-256: ${sourceSha256}`);
       verified = true;
       break;
     } catch (error) {
