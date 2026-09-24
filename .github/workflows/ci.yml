@@ -117,7 +117,7 @@ jobs:
 
       - name: Verify published document tree
         if: steps.current.outputs.deploy == 'true'
-        run: npm run check:deployment -- https://codex-dotfiles.allurx.workers.dev
+        run: npm run check:deployment -- https://codex.allurx.io
 
       - name: Record published site
         if: steps.current.outputs.deploy == 'true'
@@ -125,6 +125,6 @@ jobs:
           SOURCE_COMMIT: ${{ github.sha }}
         run: |
           {
-            printf 'Published https://codex-dotfiles.allurx.workers.dev\n\n'
+            printf 'Published https://codex.allurx.io\n\n'
             printf 'Verified source commit: `%s`\n' "$SOURCE_COMMIT"
           } >> "$GITHUB_STEP_SUMMARY"

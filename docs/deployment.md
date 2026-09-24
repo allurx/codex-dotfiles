@@ -1,6 +1,6 @@
 # 文档站部署
 
-文档树由 [GitHub Actions](../.github/workflows/ci.yml) 构建，通过 Cloudflare Workers Static Assets 发布到 [codex.allurx.io](https://codex.allurx.io)。默认地址为 [codex-dotfiles.allurx.workers.dev](https://codex-dotfiles.allurx.workers.dev)。页面公开包含 `codex/AGENTS.md` 的全部内容，仓库保持私有。
+文档树由 [GitHub Actions](../.github/workflows/ci.yml) 构建，通过 Cloudflare Workers Static Assets 发布到 [codex.allurx.io](https://codex.allurx.io)。页面公开包含 `codex/AGENTS.md` 的全部内容，仓库保持私有。
 
 ## 准备
 
@@ -34,7 +34,7 @@ npm run verify
 
 在 **Actions → CI** 查看验证、artifact、构建摘要和部署日志；在 **Cloudflare → Workers & Pages → codex-dotfiles → Deployments** 核对版本。旧运行发现 `main` 已更新时跳过部署。
 
-CI 对默认地址检查 HTTPS、响应类型及 HTML SHA-256 与本次 artifact 一致。需要手动核对任一站点时，先确保本地 `dist/index.html` 对应待核对版本，再执行：
+CI 对自定义域名检查 HTTPS、响应类型及 HTML SHA-256 与本次 artifact 一致。需要手动核对站点时，先确保本地 `dist/index.html` 对应待核对版本，再执行：
 
 ```sh
 npm run check:deployment -- https://codex.allurx.io
@@ -42,6 +42,6 @@ npm run check:deployment -- https://codex.allurx.io
 
 ## 域名与回滚
 
-自定义域名在 **Cloudflare → Workers & Pages → codex-dotfiles → Settings → Domains & Routes** 绑定。Wrangler 不配置 `routes`，日常 CI 不修改域名。配置要求见 [Cloudflare Custom Domains](https://developers.cloudflare.com/workers/configuration/routing/custom-domains/)。默认 `workers.dev` 地址保持可用，版本预览 URL 关闭。
+自定义域名在 **Cloudflare → Workers & Pages → codex-dotfiles → Settings → Domains & Routes** 绑定。Wrangler 不配置 `routes`，日常 CI 不修改域名。配置要求见 [Cloudflare Custom Domains](https://developers.cloudflare.com/workers/configuration/routing/custom-domains/)。`workers.dev` 和版本预览 URL 均关闭。
 
 需要回滚时，在该 Worker 的 **Deployments** 选择已验证的历史版本执行 [Rollback](https://developers.cloudflare.com/workers/versions-and-deployments/rollbacks/)，核对实际页面，并在 Git 中修正对应改动，避免下次推送再次发布问题版本。
