@@ -1,7 +1,15 @@
 /*
 !/.gitignore
+!/.gitattributes
 !/AGENTS.md
 !/README.md
+!/.github/
+!/.node-version
+!/package.json
+!/package-lock.json
+!/wrangler.jsonc
+!/scripts/
+!/docs/
 !/codex/
 /codex/*
 !/codex/AGENTS.md

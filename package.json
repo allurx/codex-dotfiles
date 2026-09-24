@@ -1,0 +1,18 @@
+{
+  "name": "codex-dotfiles",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "build": "node scripts/document-tree.mjs build",
+    "check": "node scripts/document-tree.mjs check",
+    "verify": "npm run build && npm run check && npm run deploy:production -- --dry-run",
+    "check:deployment": "node scripts/check-deployment.mjs",
+    "deploy:production": "wrangler deploy --env production"
+  },
+  "devDependencies": {
+    "wrangler": "4.137.0"
+  }
+}

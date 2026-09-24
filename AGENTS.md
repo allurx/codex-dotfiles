@@ -26,6 +26,13 @@
 - 按授权将 `codex/AGENTS.md` 部署到实际 Codex 主目录下的 `AGENTS.md`；主目录由 `CODEX_HOME` 指定，未设置时默认为 `%USERPROFILE%\.codex`。
 - 部署后逐字节核对维护源与本机生效文件，确认内容一致。
 
+## 文档站
+
+- 网站仅发布 `codex/AGENTS.md` 的完整 HTML 阅读视图；生成器固定版本，配置与入口见 `scripts/document-tree.mjs`，操作见 `docs/deployment.md`。
+- `dist/` 是 CI 交付目录，`work/agents-tree.html` 是本地阅读视图；两者均不纳入版本控制。不要修改生成的规则正文。
+- 部署使用同一次验证通过的 artifact，不在部署步骤重新构建；网站发布与本机全局指令部署互相独立。
+- 修改构建脚本、workflow 或 Wrangler 配置后执行 `npm run verify`；线上发布后核对实际 HTML 内容，并按阅读视图要求抽查浏览器交互。
+
 ## 交付检查
 
 - 执行 `git diff --check`，分别报告语义核对、视图一致性和浏览器检查的结果。
