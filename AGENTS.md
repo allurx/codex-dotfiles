@@ -4,9 +4,10 @@
 
 - `codex/AGENTS.md` 是全局指令的唯一维护源。本文件只约束此仓库的维护工作，不部署为全局指令。
 
-## Skill 安装
+## Skill 获取
 
-- 本文件指定的 Skill 优先复用本地安装；缺失时按对应链接自动安装完整目录到 `~/.agents/skills/`，读取 `SKILL.md` 并核对所需资源后继续，无需再次确认。已有安装不自动升级或覆盖。
+- 每次使用本工程的 `instruction-structurer` 或 `markdown-tree-view` 前，执行 `npm run skills:sync`，从 GitHub 源仓库 `allurx/agent-skills` 的 `main` 获取最新完整目录到项目缓存，无需再次确认。
+- 按命令输出的路径读取本次同步的 `SKILL.md` 并核对所需资源。同步失败时先处理失败，不回退到旧安装副本。
 
 ## 结构维护
 
@@ -28,10 +29,11 @@
 
 ## 文档站
 
-- 网站发布 `codex/AGENTS.md` 的完整 HTML 阅读视图及 `site/` 图标资源；生成器固定版本，配置与入口见 `scripts/document-tree.mjs`，操作见 `docs/deployment.md`。
+- 网站发布 `codex/AGENTS.md` 的完整 HTML 阅读视图及 `site/` 图标资源；每次构建获取最新 Skill，并记录实际使用的 commit。配置与入口见 `scripts/document-tree.ts`，操作见 `docs/deployment.md`。
 - `dist/` 是 CI 交付目录，`work/agents-tree.html` 是本地阅读视图；两者均不纳入版本控制。不要修改生成的规则正文。
 - 部署使用同一次验证通过的 artifact，不在部署步骤重新构建；网站发布与本机全局指令部署互相独立。
 - 修改构建脚本、workflow 或 Wrangler 配置后执行 `npm run verify`；线上发布后核对实际 HTML 内容，并按阅读视图要求抽查浏览器交互。
+- `scripts/` 使用 Node.js 原生执行的 TypeScript；按 `tsconfig.json` 的严格配置检查，仅使用可擦除的类型语法。代码检查入口为 `npm run check:code`。
 
 ## 交付检查
 

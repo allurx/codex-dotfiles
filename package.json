@@ -1,18 +1,40 @@
 {
-  "name": "codex-dotfiles",
-  "private": true,
-  "type": "module",
-  "engines": {
-    "node": ">=24"
-  },
-  "scripts": {
-    "build": "node scripts/document-tree.mjs build",
-    "check": "node scripts/document-tree.mjs check",
-    "verify": "npm run build && npm run check && npm run deploy:production -- --dry-run",
-    "check:deployment": "node scripts/check-deployment.mjs",
-    "deploy:production": "wrangler deploy --env production"
-  },
-  "devDependencies": {
-    "wrangler": "4.137.0"
-  }
+    "name": "codex-dotfiles",
+    "private": true,
+    "license": "MIT",
+    "type": "module",
+    "engines": {
+        "node": ">=24.12.0"
+    },
+    "scripts": {
+        "skills:sync": "node scripts/document-tree.ts sync-skills",
+        "format": "prettier scripts eslint.config.mjs tsconfig.json package.json --write",
+        "format:check": "prettier scripts eslint.config.mjs tsconfig.json package.json --check",
+        "lint": "eslint scripts",
+        "type-check": "tsc --noEmit",
+        "check:code": "npm run format:check && npm run lint && npm run type-check",
+        "build": "npm run check:code && node scripts/document-tree.ts build",
+        "check": "node scripts/document-tree.ts check",
+        "verify": "npm run build && npm run check && npm run deploy:production -- --dry-run",
+        "check:deployment": "node scripts/check-deployment.ts",
+        "deploy:production": "wrangler deploy --env production"
+    },
+    "devDependencies": {
+        "@eslint/js": "10.0.1",
+        "@types/node": "24.13.6",
+        "eslint": "10.11.0",
+        "prettier": "3.9.9",
+        "typescript": "6.0.3",
+        "typescript-eslint": "8.70.1",
+        "wrangler": "4.137.0"
+    },
+    "prettier": {
+        "tabWidth": 4,
+        "printWidth": 120,
+        "semi": true,
+        "singleQuote": false,
+        "endOfLine": "lf",
+        "embeddedLanguageFormatting": "auto",
+        "trailingComma": "es5"
+    }
 }

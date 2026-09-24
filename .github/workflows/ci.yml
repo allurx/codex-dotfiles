@@ -32,7 +32,7 @@ jobs:
           node-version-file: .node-version
           cache: npm
 
-      - name: Install deployment dependencies
+      - name: Install project dependencies
         run: npm ci
 
       - name: Build and verify document tree

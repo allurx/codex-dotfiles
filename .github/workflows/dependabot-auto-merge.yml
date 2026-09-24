@@ -1,0 +1,125 @@
+name: Dependabot auto-merge
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+
+permissions: {}
+
+concurrency:
+  group: dependabot-auto-merge-${{ github.event.workflow_run.head_repository.full_name }}-${{ github.event.workflow_run.head_branch }}
+  cancel-in-progress: false
+
+jobs:
+  auto-merge:
+    if: >-
+      github.event.workflow_run.event == 'pull_request' &&
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.head_repository.full_name == github.repository
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: write
+      pull-requests: write
+      actions: write
+    steps:
+      - name: Verify Dependabot updates, request native merge, and dispatch main CI
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          node --input-type=module <<'JS'
+          import { execFileSync } from "node:child_process";
+          import { readFileSync } from "node:fs";
+          import { setTimeout } from "node:timers/promises";
+
+          const event = JSON.parse(readFileSync(process.env.GITHUB_EVENT_PATH, "utf8"));
+          const run = event.workflow_run;
+          const repository = process.env.GITHUB_REPOSITORY;
+          const gh = (...args) => execFileSync("gh", args, { encoding: "utf8", timeout: 30_000 });
+          const api = (path, ...options) => JSON.parse(gh("api", path, ...options));
+          const skip = (reason) => console.log("Skipping: " + reason);
+
+          function patchOrMinor(message) {
+            const blocks = [...message.replaceAll("\r\n", "\n").matchAll(/^---\nupdated-dependencies:\n([\s\S]*?)^\.\.\.$/gm)];
+            if (blocks.length !== 1) return false;
+            const entries = blocks[0][1].trimEnd().split(/\n(?=- dependency-name: )/u);
+            return entries.every((entry) => {
+              const [name, ...fields] = entry.split("\n");
+              if (!/^- dependency-name: .+$/u.test(name) || fields.some((field) => !/^  [a-z-]+: .+$/u.test(field))) return false;
+              const updates = fields.filter((field) => field.startsWith("  update-type:"));
+              return updates.length === 1 && /^  update-type: version-update:semver-(patch|minor)$/u.test(updates[0]);
+            });
+          }
+
+          async function main() {
+            if (run.event !== "pull_request" || run.conclusion !== "success" ||
+                run.head_repository?.full_name !== repository) return skip("not a successful same-repository PR run");
+            const associated = run.pull_requests ?? [];
+            if (associated.length !== 1 || !Number.isSafeInteger(associated[0].number)) {
+              return skip("the CI run does not identify exactly one pull request");
+            }
+            const number = associated[0].number;
+            const endpoint = "repos/" + repository + "/pulls/" + number;
+            const matches = (value) => value.user?.login === "dependabot[bot]" &&
+              value.head?.repo?.full_name === repository && value.base?.ref === "main" &&
+              value.head?.sha === run.head_sha && !value.draft;
+            let pr = api(endpoint);
+            if (!matches(pr)) return skip("author, repository, base or current head does not match");
+            if (pr.state !== "open" && !pr.merged) return skip("the PR was closed without merging");
+            const commits = api(endpoint + "/commits?per_page=100", "--paginate", "--slurp").flat();
+            if (!commits.length || commits.length !== pr.commits || commits.at(-1).sha !== run.head_sha ||
+                !commits.every((commit) => commit.author?.login === "dependabot[bot]" &&
+                  commit.commit?.verification?.verified === true && patchOrMinor(commit.commit.message))) {
+              return skip("only verified Dependabot patch/minor updates are eligible; other updates need manual review");
+            }
+
+            // Inspect the final head after fetching metadata; GitHub enforces required checks at merge time.
+            pr = api(endpoint);
+            if (!matches(pr)) return skip("the PR changed during inspection");
+            for (let attempt = 0; !pr.merged && (pr.mergeable_state == null || pr.mergeable_state === "unknown"); attempt++) {
+              if (pr.state !== "open") return skip("the PR was closed without merging");
+              if (attempt === 5) throw new Error("GitHub did not finish calculating mergeability. Rerun this workflow.");
+              await setTimeout(2_000);
+              pr = api(endpoint);
+              if (!matches(pr)) return skip("the PR changed while GitHub calculated mergeability");
+            }
+            if (!pr.merged && (pr.state !== "open" || pr.mergeable_state !== "clean")) {
+              return skip("the PR is not currently mergeable; wait for updated CI or review");
+            }
+            let requested = false;
+            let merged = pr.merged === true;
+            try {
+              if (!merged && !pr.auto_merge) {
+                requested = true;
+                gh("pr", "merge", String(number), "--repo", repository,
+                  "--auto", "--squash", "--match-head-commit", run.head_sha);
+              }
+              for (let attempt = 0; !merged && attempt < 24; attempt++) {
+                pr = api(endpoint);
+                if (!matches(pr)) return skip("the PR head changed after CI");
+                merged = pr.merged === true;
+                if (merged) break;
+                if (pr.state === "closed") return skip("the PR was closed without merging");
+                if (requested && pr.auto_merge) {
+                  throw new Error("Merge requirements changed; cancelling this run's pending auto-merge.");
+                }
+                if (attempt < 23) await setTimeout(5_000);
+              }
+              if (!merged) throw new Error("Native merge was not confirmed within two minutes. Check the PR and rerun this workflow.");
+            } finally {
+              // Do not leave this run's request armed for a future, uninspected head.
+              if (requested && !merged) {
+                const current = api(endpoint);
+                if (!current.merged && current.auto_merge?.enabled_by?.login === "github-actions[bot]") {
+                  gh("pr", "merge", String(number), "--repo", repository, "--disable-auto");
+                }
+              }
+            }
+            console.log("PR #" + number + " is merged at " + pr.merge_commit_sha + "; requesting main CI.");
+            process.stdout.write(gh("api", "repos/" + repository + "/actions/workflows/ci.yml/dispatches",
+              "--method", "POST", "-f", "ref=main"));
+          }
+
+          await main();
+          JS
